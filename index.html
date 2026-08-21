@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agent Readiness Scanner - aiwebscan.nl</title>
+<style>
+  :root { --bg:#0b0d11; --card:#161920; --border:#262b35; --text:#e8eaed; --muted:#9aa3b0; --accent:#4f8cff; --green:#3ecf8e; --red:#ff6b6b; --amber:#f2b84b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); padding:32px 16px; }
+  .wrap { max-width:760px; margin:0 auto; }
+  h1 { font-size:1.8rem; margin-bottom:6px; }
+  .subtitle { color:var(--muted); margin-bottom:28px; }
+  .scan-form { display:flex; gap:8px; margin-bottom:24px; }
+  .scan-form input { flex:1; padding:12px 14px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:1rem; }
+  .scan-form button { padding:12px 22px; border-radius:8px; border:none; background:var(--accent); color:white; font-weight:600; cursor:pointer; font-size:1rem; }
+  .scan-form button:disabled { opacity:.6; cursor:not-allowed; }
+  .status { color:var(--muted); margin-bottom:20px; min-height:1.2em; }
+  .level-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; margin-bottom:24px; }
+  .level-number { font-size:3rem; font-weight:800; }
+  .level-name { color:var(--accent); font-weight:600; font-size:1.1rem; }
+  .category { margin-bottom:18px; }
+  .category h3 { font-size:1rem; margin-bottom:8px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .check { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .check .name { font-weight:600; }
+  .check .msg { color:var(--muted); font-size:.85rem; }
+  .badge { font-size:.75rem; font-weight:700; padding:3px 10px; border-radius:999px; text-transform:uppercase; white-space:nowrap; }
+  .badge.pass { background:rgba(62,207,142,.15); color:var(--green); }
+  .badge.fail { background:rgba(255,107,107,.15); color:var(--red); }
+  .badge.neutral,.badge.unableToCheck { background:rgba(242,184,75,.15); color:var(--amber); }
+  footer { color:var(--muted); font-size:.8rem; text-align:center; margin-top:40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AI Agent Readiness Scanner</h1>
+  <p class="subtitle">Check of jouw site klaar is voor AI-agents, crawlers en answer engines. Onderdeel van aiwebscan.nl.</p>
+  <form class="scan-form" id="scanForm"><input type="url" id="urlInput" placeholder="https://jouwsite.nl" required><button type="submit" id="scanBtn">Scan</button></form>
+  <div class="status" id="status"></div><div id="results"></div>
+</div>
+<script>
+const CATEGORY_LABELS={discoverability:"Discoverability",contentAccessibility:"Content",botAccessControl:"Bot Access Control",discovery:"API, Auth, MCP & Skill Discovery",commerce:"Commerce (optioneel)"};
+const CHECK_LABELS={robotsTxt:"robots.txt",sitemap:"Sitemap",linkHeaders:"Link headers",dnsAid:"DNS for AI Discovery (DNS-AID)",markdownNegotiation:"Markdown Negotiation",robotsTxtAiRules:"AI bot rules in robots.txt",contentSignals:"Content Signals",webBotAuth:"Web Bot Auth",mcpServerCard:"MCP Server Card",a2aAgentCard:"A2A Agent Card",agentSkills:"Agent Skills index",webMcp:"WebMCP",apiCatalog:"API Catalog",oauthDiscovery:"OAuth / OIDC discovery",oauthProtectedResource:"OAuth Protected Resource",authMd:"Auth.md",x402:"x402 Protocol",mpp:"MPP (Machine Payment Protocol)",ucp:"Universal Commerce Protocol",acp:"Agentic Commerce Protocol",ap2:"AP2 (Agent Payments Protocol)"};
+const form=document.getElementById("scanForm"),statusEl=document.getElementById("status"),resultsEl=document.getElementById("results"),scanBtn=document.getElementById("scanBtn");
+form.addEventListener("submit",async e=>{e.preventDefault();const url=document.getElementById("urlInput").value.trim();if(!url)return;scanBtn.disabled=true;statusEl.textContent="Bezig met scannen...";resultsEl.innerHTML="";try{const res=await fetch("/api/scan?url="+encodeURIComponent(url));if(!res.ok)throw new Error("Scan mislukt ("+res.status+")");const data=await res.json();render(data);statusEl.textContent="Laatst gescand: "+new Date(data.scanned_at).toLocaleString("nl-NL")}catch(err){statusEl.textContent="Fout: "+err.message}finally{scanBtn.disabled=false}});
+function render(data){let html=`<div class="level-card"><div class="level-number">${data.level} / 5</div><div class="level-name">${data.level_name}</div><div style="color:var(--muted);margin-top:6px;">${data.url}</div></div>`;for(const[catKey,catChecks]of Object.entries(data.checks)){html+=`<div class="category"><h3>${CATEGORY_LABELS[catKey]||catKey}</h3>`;for(const[checkKey,check]of Object.entries(catChecks)){html+=`<div class="check"><div><div class="name">${CHECK_LABELS[checkKey]||checkKey}</div><div class="msg">${check.message}</div></div><span class="badge ${check.status}">${check.status}</span></div>`}html+="</div>"}resultsEl.innerHTML=html}
+</script>
+<footer>aiwebscan.nl — AI Agent Readiness Scanner (MVP)</footer>
+</body>
+</html>
