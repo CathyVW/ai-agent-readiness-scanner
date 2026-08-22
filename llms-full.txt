@@ -1,0 +1,17 @@
+# aiwebscan.nl — full agent context
+
+aiwebscan.nl provides technical diagnostics for websites that need to be discoverable, understandable and usable by AI systems and agents. The public scanner does not guarantee ranking, citation, recommendation or compliance.
+
+## Primary service
+The scanner accepts a public HTTPS URL and checks selected public resources such as robots.txt, sitemap.xml, HTTP headers, Markdown negotiation, llms.txt, security.txt, JSON-LD, agent discovery files and crawler responses.
+
+## Profiles
+- Quick Technical Check
+- Complete AI Visibility Audit
+- Google AI Search Foundation
+- GEO Content & Entity Audit
+- Agent & API Readiness
+- Commerce & Transaction Readiness
+
+## Contact
+For implementation support: mailto:hello@aiwebscan.nl

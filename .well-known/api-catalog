@@ -1,0 +1,7 @@
+{
+  "version": "1",
+  "linkset": [
+    {"anchor":"https://aiwebscan.nl/api/scan","rel":["service-desc"],"type":"application/json","title":"Public scan endpoint"},
+    {"anchor":"https://aiwebscan.nl/","rel":["service-doc"],"type":"text/html","title":"Scanner documentation"}
+  ]
+}

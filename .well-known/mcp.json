@@ -1,0 +1,8 @@
+{
+  "name": "aiwebscan-readiness-scanner",
+  "version": "0.1.0",
+  "description": "Metadata for the aiwebscan.nl public readiness scanner. A live MCP transport is not currently exposed.",
+  "status": "metadata-only",
+  "documentation": "https://aiwebscan.nl/hoe-werkt-de-scan.html",
+  "capabilities": {"tools": false, "resources": false, "prompts": false}
+}

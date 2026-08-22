@@ -1,0 +1,8 @@
+{
+  "version": "1",
+  "operator": "aiwebscan.nl",
+  "purpose": "AI agent readiness and GEO diagnostics",
+  "contact": "mailto:hello@aiwebscan.nl",
+  "usage": {"search": true, "reference": true, "training": "policy_and_law_dependent"},
+  "canonical": "https://aiwebscan.nl/.well-known/ai.json"
+}

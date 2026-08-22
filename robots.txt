@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+# Search and answer-engine crawlers
+User-agent: Googlebot
+Allow: /
+User-agent: Bingbot
+Allow: /
+User-agent: OAI-SearchBot
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: GPTBot
+Allow: /
+User-agent: Google-GeminiNotebook
+Allow: /
+User-agent: OAI-AdsBot
+Allow: /
+
+Content-Signal: search=yes, ai-train=yes, use=reference
+Sitemap: https://aiwebscan.nl/sitemap.xml

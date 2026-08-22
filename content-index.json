@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "name": "aiwebscan.nl content index",
+  "updated": "2026-08-22",
+  "items": [
+    {"url":"https://aiwebscan.nl/","type":"WebSite","title":"AI Agent Readiness Scanner"},
+    {"url":"https://aiwebscan.nl/hoe-werkt-de-scan.html","type":"HowTo","title":"Hoe werkt de AI-readiness scan?"},
+    {"url":"https://aiwebscan.nl/eu-ai-act.html","type":"Article","title":"EU AI Act: praktische uitleg"}
+  ]
+}

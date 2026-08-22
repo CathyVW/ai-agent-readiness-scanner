@@ -1,0 +1,20 @@
+# aiwebscan.nl
+
+> AI Agent Readiness, GEO and technical discovery diagnostics for websites.
+
+aiwebscan.nl scans public website responses for crawlability, technical SEO, AI-content discovery, bot access, structured data, security and agent/API readiness.
+
+## Scanner
+- [AI Agent Readiness Scanner](https://aiwebscan.nl/): run a public audit.
+- [How the scan works](https://aiwebscan.nl/hoe-werkt-de-scan.html): methodology and status interpretation.
+- [EU AI Act information](https://aiwebscan.nl/eu-ai-act.html): general information, not legal advice.
+
+## Legal and trust
+- [Privacy](https://aiwebscan.nl/privacy.html)
+- [Disclaimer](https://aiwebscan.nl/disclaimer.html)
+- [Terms](https://aiwebscan.nl/voorwaarden.html)
+- [Security disclosure](https://aiwebscan.nl/.well-known/security.txt)
+
+## Optional
+- [Agent discovery](https://agenticdiscovery.nl/): related discovery services.
+- [UCP Scanner](https://ucpscanner.nl/): specialist commerce protocol tooling.

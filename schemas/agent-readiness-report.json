@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiwebscan.nl/schemas/agent-readiness-report.json",
+  "title": "AIWebScan Agent Readiness Report",
+  "type": "object",
+  "required": ["url", "profile", "score", "checks"],
+  "properties": {
+    "url": {"type": "string", "format": "uri"},
+    "profile": {"type": "string"},
+    "score": {"type": "integer", "minimum": 0, "maximum": 100},
+    "checks": {"type": "object"}
+  }
+}

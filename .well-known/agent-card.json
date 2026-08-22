@@ -1,0 +1,10 @@
+{
+  "name": "aiwebscan-readiness-scanner",
+  "description": "Public AI Agent Readiness and GEO diagnostics service.",
+  "version": "0.1.0",
+  "supportedInterfaces": [{"url":"https://aiwebscan.nl/","protocolBinding":"https","protocolVersion":"1.0"}],
+  "capabilities": {"streaming": false, "pushNotifications": false},
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/html", "application/json"],
+  "skills": [{"id":"website-readiness-scan","name":"Website readiness scan","description":"Scan a public HTTPS website for technical AI-readiness signals.","tags":["ai-readiness","geo","seo","diagnostics"]}]
+}

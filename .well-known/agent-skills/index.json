@@ -1,0 +1,8 @@
+{
+  "schema": "https://aiwebscan.nl/schemas/agent-skills-index.json",
+  "version": "1.0.0",
+  "skills": [
+    {"name":"website-readiness-scan","type":"diagnostic","description":"Scan a public HTTPS website for AI agent and GEO readiness signals.","url":"https://aiwebscan.nl/"},
+    {"name":"explain-scan-results","type":"documentation","description":"Explain readiness checks, statuses and implementation priorities.","url":"https://aiwebscan.nl/hoe-werkt-de-scan.html"}
+  ]
+}

@@ -1,0 +1,9 @@
+AI-Policy-Version: 1
+Operator: aiwebscan.nl
+Contact: mailto:hello@aiwebscan.nl
+Purpose: public AI agent readiness and GEO diagnostics
+Search: allowed
+Reference: allowed
+Training: subject to applicable law and provider policy
+Attribution: preferred
+Canonical: https://aiwebscan.nl/.well-known/ai.txt

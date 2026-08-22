@@ -1,0 +1,5 @@
+Contact: mailto:security@aiwebscan.nl
+Expires: 2027-08-22T00:00:00.000Z
+Preferred-Languages: nl, en
+Canonical: https://aiwebscan.nl/.well-known/security.txt
+Policy: https://aiwebscan.nl/disclaimer.html
