@@ -1,204 +1,66 @@
-const AI_BOT_NAMES = [
-  "gptbot", "oai-searchbot", "chatgpt-user", "claude-web", "claudebot",
-  "anthropic-ai", "google-extended", "perplexitybot", "perplexity-user",
-  "bytespider", "ccbot", "cohere-ai", "applebot-extended", "meta-externalagent"
+const AI_BOT_REGISTRY = [
+  { id: "Googlebot", label: "Googlebot", family: "search", status: "actief" },
+  { id: "Bingbot", label: "Bingbot", family: "search", status: "actief" },
+  { id: "OAI-SearchBot", label: "OAI-SearchBot", family: "search", status: "actief" },
+  { id: "GPTBot", label: "GPTBot", family: "training", status: "actief" },
+  { id: "ChatGPT-User", label: "ChatGPT-User", family: "user-fetch", status: "actief" },
+  { id: "ClaudeBot", label: "ClaudeBot", family: "retrieval", status: "actief" },
+  { id: "PerplexityBot", label: "PerplexityBot", family: "search", status: "actief" },
+  { id: "Google-Extended", label: "Google-Extended", family: "training", status: "actief" },
+  { id: "Google-GeminiNotebook", label: "Google-GeminiNotebook", family: "user-fetch", status: "actief" },
+  { id: "Google-NotebookLM", label: "Google-NotebookLM", family: "user-fetch", status: "deprecated" },
+  { id: "OAI-AdsBot", label: "OAI-AdsBot", family: "advertising", status: "actief" },
+  { id: "Applebot-Extended", label: "Applebot-Extended", family: "training", status: "actief" },
+  { id: "CCBot", label: "CCBot", family: "indexing", status: "actief" },
+  { id: "Bytespider", label: "Bytespider", family: "indexing", status: "actief" },
+  { id: "cohere-ai", label: "cohere-ai", family: "retrieval", status: "actief" },
+  { id: "meta-externalagent", label: "meta-externalagent", family: "retrieval", status: "actief" }
 ];
 
+const CHECK_REGISTRY = {
+  "llms-txt": { category: "aiContent", maturity: "optioneel", penalty: 0 },
+  "llms-full-txt": { category: "aiContent", maturity: "conventie", penalty: 0 },
+  "llms-txt-v2": { category: "aiContent", maturity: "aanbevolen", penalty: 0 },
+  "markdown-routes": { category: "aiContent", maturity: "aanbevolen", penalty: 0 },
+  "content-index": { category: "aiContent", maturity: "experimenteel", penalty: 0 },
+  "agents-md": { category: "aiContent", maturity: "conditioneel", penalty: 0 },
+  "ai-txt": { category: "aiContent", maturity: "experimenteel", penalty: 0 },
+  "security-txt": { category: "security", maturity: "aanbevolen", penalty: 0 },
+  "canonical": { category: "seo", maturity: "basis", penalty: 5 },
+  "meta-robots": { category: "seo", maturity: "basis", penalty: 5 },
+  "page-metadata": { category: "seo", maturity: "basis", penalty: 5 },
+  "jsonld": { category: "seo", maturity: "aanbevolen", penalty: 2 },
+  "bot-matrix": { category: "botAccess", maturity: "aanbevolen", penalty: 4 }
+};
+
 async function safeFetch(url, options = {}) {
-  try {
-    return await fetch(url, { redirect: "follow", cf: { cacheTtl: 0 }, ...options });
-  } catch {
-    return null;
-  }
+  try { return await fetch(url, { redirect: "follow", cf: { cacheTtl: 0 }, ...options }); } catch { return null; }
 }
+function jsonResponse(payload, status = 200) { return new Response(JSON.stringify(payload, null, 2), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" } }); }
+function normalizeProfile(value) { const allowed = ["quick", "complete", "google", "geo", "agent", "commerce"]; return allowed.includes(value) ? value : "complete"; }
+function getTarget(value) { const target = new URL(value); if (!["http:", "https:"].includes(target.protocol)) throw new Error("Alleen http- en https-URL's zijn toegestaan."); return target; }
+function originOf(target) { return `${target.protocol}//${target.host}`; }
+function result(status, message, extra = {}) { return { status, message, ...extra }; }
+async function fetchText(url, options = {}) { const response = await safeFetch(url, options); if (!response) return { response: null, text: "" }; return { response, text: await response.text() }; }
 
-function getTarget(value) {
-  const target = new URL(value);
-  if (!["http:", "https:"].includes(target.protocol)) {
-    throw new Error("Alleen http- en https-URL's zijn toegestaan.");
-  }
-  return target;
-}
-
-function originOf(target) {
-  return `${target.protocol}//${target.host}`;
-}
-
-async function robotsCheck(origin) {
-  const response = await safeFetch(`${origin}/robots.txt`);
-  if (!response || response.status !== 200) {
-    return { status: "fail", message: "robots.txt niet bereikbaar of geen HTTP 200." };
-  }
-  const text = await response.text();
-  if (!/user-agent/i.test(text)) {
-    return { status: "fail", message: "robots.txt bevat geen User-agent directive." };
-  }
-  return { status: "pass", message: "robots.txt gevonden met geldige User-agent directives.", raw: text };
-}
-
-async function sitemapCheck(origin, robotsText) {
-  if (/sitemap\s*:/i.test(robotsText)) {
-    return { status: "pass", message: "Sitemap directive gevonden in robots.txt." };
-  }
-  const response = await safeFetch(`${origin}/sitemap.xml`);
-  if (response && response.status === 200) {
-    const text = await response.text();
-    if (/<(?:urlset|sitemapindex)\b/i.test(text)) {
-      return { status: "pass", message: "/sitemap.xml bevat geldige sitemap-XML." };
-    }
-  }
-  return { status: "fail", message: "Geen geldige sitemap gevonden." };
-}
-
-async function linkHeadersCheck(origin) {
-  const response = await safeFetch(origin);
-  if (!response) return { status: "fail", message: "Homepage niet bereikbaar." };
-  const link = response.headers.get("link") || "";
-  const relevant = ["service-desc", "describedby", "api-catalog", "service-doc"];
-  if (relevant.some((rel) => link.includes(rel))) {
-    return { status: "pass", message: "Agent-relevante Link response header gevonden." };
-  }
-  return { status: "fail", message: "Geen agent-relevante Link response header gevonden." };
-}
-
-async function dnsAidCheck(hostname) {
-  try {
-    const response = await safeFetch(`https://cloudflare-dns.com/dns-query?name=_agents.${hostname}&type=HTTPS`, { headers: { Accept: "application/dns-json" } });
-    if (!response) return { status: "unableToCheck", message: "DNS lookup mislukt." };
-    const data = await response.json();
-    return data.Answer?.length ? { status: "pass", message: "DNS-AID record gevonden." } : { status: "fail", message: "Geen DNS-AID record gevonden." };
-  } catch {
-    return { status: "unableToCheck", message: "DNS-AID check kon niet worden uitgevoerd." };
-  }
-}
-
-async function markdownCheck(origin) {
-  const response = await safeFetch(origin, { headers: { Accept: "text/markdown" } });
-  if (!response) return { status: "fail", message: "Homepage niet bereikbaar voor Markdown-check." };
-  const type = response.headers.get("content-type") || "";
-  return type.includes("text/markdown") ? { status: "pass", message: "Accept: text/markdown geeft Markdown terug." } : { status: "fail", message: "Markdown negotiation niet gedetecteerd." };
-}
-
-function aiRulesCheck(robotsText) {
-  if (!robotsText) return { status: "fail", message: "robots.txt niet beschikbaar." };
-  const lower = robotsText.toLowerCase();
-  const explicit = AI_BOT_NAMES.some((name) => lower.includes(name));
-  const wildcard = /user-agent:\s*\*/i.test(robotsText);
-  return explicit || wildcard ? { status: "pass", message: "AI-bot- of wildcard-regels gevonden." } : { status: "fail", message: "Geen AI-botregels gevonden." };
-}
-
-function contentSignalsCheck(robotsText) {
-  return robotsText && /content-signal\s*:/i.test(robotsText) ? { status: "pass", message: "Content-Signal directive gevonden." } : { status: "fail", message: "Geen Content-Signal directive gevonden." };
-}
-
-async function jsonCheck(origin, paths, validate) {
-  for (const path of paths) {
-    const response = await safeFetch(`${origin}${path}`);
-    if (!response || response.status !== 200) continue;
-    try {
-      const data = await response.json();
-      if (validate(data)) return { status: "pass", message: `Geldig bestand gevonden op ${path}.` };
-    } catch {}
-  }
-  return { status: "fail", message: `Geen geldig bestand gevonden op ${paths.join(" of ")}.` };
-}
-
-async function webBotAuthCheck(origin) {
-  const response = await safeFetch(`${origin}/.well-known/http-message-signatures-directory`);
-  if (response && response.status === 200) {
-    try {
-      const data = await response.json();
-      if (data?.keys || Array.isArray(data)) return { status: "pass", message: "Web Bot Auth-directory gevonden." };
-    } catch {}
-  }
-  return { status: "neutral", message: "Web Bot Auth niet gevonden; optioneel." };
-}
-
-function commerceCheck(name) {
-  return { status: "neutral", message: `${name}: niet geïmplementeerd in deze MVP.` };
-}
-
-function readinessLevel(checks) {
-  const d = checks.discoverability;
-  const c = checks.contentAccessibility;
-  const b = checks.botAccessControl;
-  const x = checks.discovery;
-  const level1 = [d.robotsTxt, d.sitemap, d.linkHeaders].filter((check) => check.status === "pass").length >= 2;
-  const level2 = level1 && b.robotsTxtAiRules.status === "pass" && b.contentSignals.status === "pass";
-  const level3 = level2 && c.markdownNegotiation.status === "pass";
-  const integrationPasses = [x.mcpServerCard, x.a2aAgentCard, x.agentSkills, x.apiCatalog].filter((check) => check.status === "pass").length;
-  const level4 = level3 && integrationPasses >= 1;
-  const auth = [x.oauthDiscovery, x.oauthProtectedResource, x.authMd].some((check) => check.status === "pass");
-  const level5 = level4 && [b.webBotAuth.status === "pass", integrationPasses === 4, auth].filter(Boolean).length >= 2;
-  if (level5) return { level: 5, name: "Agent-Native" };
-  if (level4) return { level: 4, name: "Agent-Integrated" };
-  if (level3) return { level: 3, name: "Agent-Readable" };
-  if (level2) return { level: 2, name: "Bot-Aware" };
-  if (level1) return { level: 1, name: "Basic Web Presence" };
-  return { level: 0, name: "Not Ready" };
-}
-
-export async function onRequest(context) {
-  const { request } = context;
-  let input;
-  if (request.method === "POST") {
-    const body = await request.json().catch(() => ({}));
-    input = body.url;
-  } else {
-    input = new URL(request.url).searchParams.get("url");
-  }
-  if (!input) return jsonResponse({ error: "Parameter 'url' is verplicht." }, 400);
-
-  let target;
-  try {
-    target = getTarget(input);
-  } catch (error) {
-    return jsonResponse({ error: error.message || "Ongeldige URL." }, 400);
-  }
-
-  const origin = originOf(target);
-  const robots = await robotsCheck(origin);
-  const robotsText = robots.raw || "";
-  delete robots.raw;
-
-  const [sitemap, links, dnsAid, markdown, webBotAuth, mcp, a2a, skills, apiCatalog, oauthDiscovery, oauthProtectedResource, authMdResponse] = await Promise.all([
-    sitemapCheck(origin, robotsText),
-    linkHeadersCheck(origin),
-    dnsAidCheck(target.hostname),
-    markdownCheck(origin),
-    webBotAuthCheck(origin),
-    jsonCheck(origin, ["/.well-known/mcp/server-card.json", "/.well-known/mcp/server-cards.json", "/.well-known/mcp.json"], (data) => Boolean(data?.serverInfo?.name || data?.name)),
-    jsonCheck(origin, ["/.well-known/agent-card.json"], (data) => Boolean(data?.name && data?.version && data?.supportedInterfaces)),
-    jsonCheck(origin, ["/.well-known/agent-skills/index.json", "/.well-known/skills/index.json"], (data) => Array.isArray(data?.skills)),
-    jsonCheck(origin, ["/.well-known/api-catalog"], (data) => Array.isArray(data?.linkset)),
-    jsonCheck(origin, ["/.well-known/openid-configuration", "/.well-known/oauth-authorization-server"], (data) => Boolean(data?.issuer && data?.authorization_endpoint)),
-    jsonCheck(origin, ["/.well-known/oauth-protected-resource"], (data) => Boolean(data?.resource && data?.authorization_servers)),
-    safeFetch(`${origin}/auth.md`),
-  ]);
-
-  const checks = {
-    discoverability: { robotsTxt: robots, sitemap, linkHeaders: links, dnsAid },
-    contentAccessibility: { markdownNegotiation: markdown },
-    botAccessControl: { robotsTxtAiRules: aiRulesCheck(robotsText), contentSignals: contentSignalsCheck(robotsText), webBotAuth },
-    discovery: {
-      mcpServerCard: mcp,
-      a2aAgentCard: a2a,
-      agentSkills: skills,
-      apiCatalog,
-      oauthDiscovery,
-      oauthProtectedResource,
-      authMd: authMdResponse?.status === 200 ? { status: "pass", message: "/auth.md gevonden." } : { status: "fail", message: "Geen /auth.md gevonden." },
-    },
-    commerce: { x402: commerceCheck("x402"), mpp: commerceCheck("MPP"), ucp: commerceCheck("UCP"), acp: commerceCheck("ACP"), ap2: commerceCheck("AP2") },
-  };
-
-  const level = readinessLevel(checks);
-  return jsonResponse({ url: target.href, scanned_at: new Date().toISOString(), ...level, level_name: level.name, checks });
-}
-
-function jsonResponse(payload, status = 200) {
-  return new Response(JSON.stringify(payload, null, 2), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" },
-  });
-}
+async function robotsCheck(origin) { const { response, text } = await fetchText(`${origin}/robots.txt`); if (!response || response.status !== 200) return result("fail", "robots.txt is niet bereikbaar of geeft geen HTTP 200."); if (!/user-agent/i.test(text)) return result("fail", "robots.txt bevat geen User-agent-directive."); return result("pass", "robots.txt is gevonden met geldige User-agent-directives.", { raw: text }); }
+async function sitemapCheck(origin, robotsText) { if (/sitemap\s*:/i.test(robotsText)) return result("pass", "Sitemap-directive is gevonden in robots.txt."); const { response, text } = await fetchText(`${origin}/sitemap.xml`); if (response?.status === 200 && /<(urlset|sitemapindex)\b/i.test(text)) return result("pass", "Geldige sitemap-XML is gevonden."); return result("fail", "Geen geldige sitemap gevonden op /sitemap.xml of in robots.txt."); }
+async function linkHeadersCheck(origin) { const response = await safeFetch(origin); if (!response) return result("fail", "Homepage kon niet worden opgehaald."); const link = response.headers.get("link") || ""; const found = ["alternate", "describedby", "service-desc", "api-catalog", "service-doc"].filter((rel) => link.includes(rel)); return found.length ? result("pass", "Agent-relevante Link-header gevonden.", { found }) : result("fail", "Geen agent-relevante Link-header gevonden."); }
+async function markdownNegotiationCheck(origin) { const response = await safeFetch(origin, { headers: { Accept: "text/markdown" } }); if (!response) return result("unableToCheck", "Markdown-request kon niet worden uitgevoerd."); const type = response.headers.get("content-type") || ""; return type.includes("text/markdown") ? result("pass", "Accept: text/markdown geeft Markdown terug.") : result("fail", "Accept: text/markdown geeft geen Markdown terug."); }
+async function homepageCheck(origin) { const response = await safeFetch(origin); if (!response) return result("fail", "Homepage kon niet worden opgehaald."); return result(response.status >= 200 && response.status < 400 ? "pass" : "fail", `Homepage geeft HTTP ${response.status}.`, { statusCode: response.status, finalUrl: response.url, contentType: response.headers.get("content-type") || "" }); }
+async function endpointCheck(origin, path, validator, label, optional = true) { const response = await safeFetch(`${origin}${path}`); if (!response) return result("unableToCheck", `${label}: endpoint kon niet worden gecontroleerd.`, { path }); const text = await response.text(); if (response.status !== 200) return result(optional ? "optional" : "fail", `${label}: niet gevonden (HTTP ${response.status}).`, { path, statusCode: response.status }); return validator(text, response.headers.get("content-type") || "") ? result("pass", `${label}: gevonden en inhoud lijkt geldig.`, { path, contentType: response.headers.get("content-type") || "" }) : result("warning", `${label}: gevonden, maar inhoud voldoet niet aan de basisvalidatie.`, { path }); }
+function markdownIndexValidator(text) { return /^\s*#\s+.+/m.test(text) && text.trim().length >= 40; }
+function jsonValidator(text) { try { return Boolean(JSON.parse(text)); } catch { return false; } }
+async function llmsChecks(origin) { return { root: await endpointCheck(origin, "/llms.txt", markdownIndexValidator, "llms.txt", true), full: await endpointCheck(origin, "/llms-full.txt", text => text.trim().length >= 40, "llms-full.txt", true), wellKnown: await endpointCheck(origin, "/.well-known/llms.txt", markdownIndexValidator, "Well-known llms.txt", true) }; }
+async function contentDiscoveryChecks(origin, homepageHtml, homepageResponse) { const headers = homepageResponse?.headers.get("link") || ""; const htmlRelations = /rel=["'][^"']*(alternate|describedby)[^"']*["']/i.test(homepageHtml); const relationPass = htmlRelations || /type=["']text\/markdown["']/i.test(headers) || /describedby/i.test(headers); const paths = []; for (const path of ["/index.md", "/index.html.md", "/.well-known/content-index.json"]) { const response = await safeFetch(`${origin}${path}`); if (response?.status === 200) paths.push(path); } return { llmsV2Relations: relationPass ? result("pass", "Markdown alternate/describedby-relatie gevonden.") : result("warning", "Geen llms.txt v2 alternate/describedby-relatie gevonden."), markdownRoutes: paths.length ? result("pass", "Markdown-route gevonden.", { paths }) : result("optional", "Geen vaste Markdown-route gevonden."), contentIndex: await endpointCheck(origin, "/content-index.json", jsonValidator, "content-index.json", true) }; }
+async function seoChecks(origin, homepageHtml, homepageResponse) { const canonical = /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)/i.exec(homepageHtml); const robots = /<meta[^>]+name=["']robots["'][^>]+content=["']([^"']+)/i.exec(homepageHtml); const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(homepageHtml); const description = /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i.exec(homepageHtml); const h1 = /<h1\b/i.test(homepageHtml); const jsonld = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi; let count = 0, valid = 0, match; while ((match = jsonld.exec(homepageHtml))) { count++; try { JSON.parse(match[1]); valid++; } catch {} } return { canonical: canonical ? result("pass", "Canonical-link gevonden.", { value: canonical[1] }) : result("fail", "Geen canonical-link gevonden."), metaRobots: robots ? result("pass", "Meta robots gevonden.", { value: robots[1] }) : result("warning", "Geen meta robots gevonden."), pageMetadata: title && description && h1 ? result("pass", "Title, meta description en H1 zijn aanwezig.") : result("warning", "Title, meta description of H1 ontbreekt."), jsonld: count && count === valid ? result("pass", `${valid} geldige JSON-LD-blok(ken) gevonden.`) : count ? result("warning", "JSON-LD gevonden, maar niet alle blokken zijn valide.") : result("warning", "Geen JSON-LD gevonden."), securityHeaders: homepageResponse?.headers.get("strict-transport-security") ? result("pass", "HSTS-header gevonden.") : result("warning", "HSTS-header niet gevonden.") }; }
+async function securityChecks(origin) { return { securityTxt: await endpointCheck(origin, "/.well-known/security.txt", text => /(^|\n)Contact:\s*\S+/i.test(text) && /(^|\n)Expires:\s*\S+/i.test(text), "security.txt", true), aiTxt: await endpointCheck(origin, "/.well-known/ai.txt", text => text.trim().length >= 20, "ai.txt (experimenteel)", true), aiJson: await endpointCheck(origin, "/.well-known/ai.json", jsonValidator, "ai.json (experimenteel)", true) }; }
+async function agentsContextChecks(origin) { return { agentsMd: await endpointCheck(origin, "/AGENTS.md", text => text.trim().length >= 20, "AGENTS.md (coding agents)", true), agentsMdLower: await endpointCheck(origin, "/agents.md", text => text.trim().length >= 20, "agents.md (experimenteel)", true), agentSkills: await endpointCheck(origin, "/.well-known/agent-skills/index.json", text => { try { return Array.isArray(JSON.parse(text).skills); } catch { return false; } }, "Agent Skills-index", true) }; }
+async function botMatrixCheck(origin) { const checks = []; for (const bot of AI_BOT_REGISTRY) { const response = await safeFetch(origin, { headers: { "User-Agent": `${bot.id}/1.0` } }); checks.push({ bot: bot.label, family: bot.family, registryStatus: bot.status, httpStatus: response?.status || 0, allowed: response?.status >= 200 && response?.status < 400 }); } const tested = checks.filter(x => x.httpStatus > 0), blocked = tested.filter(x => !x.allowed); return { summary: result(blocked.length ? "warning" : "pass", blocked.length ? `${blocked.length} bot(s) kregen geen succesvolle response.` : "Alle geteste bots kregen een succesvolle response.", { tested: tested.length, blocked: blocked.length }), agents: checks }; }
+function aiRulesCheck(text) { if (!text) return result("fail", "robots.txt is niet beschikbaar."); return /user-agent:\s*(gptbot|oai-searchbot|claudebot|perplexitybot|google-extended)/i.test(text) || /user-agent:\s*\*/i.test(text) ? result("pass", "AI-bot- of wildcard-regels gevonden.") : result("fail", "Geen expliciete AI-botregels gevonden."); }
+function contentSignalsCheck(text) { return /content-signal\s*:/i.test(text) ? result("pass", "Content-Signal-directive gevonden.") : result("warning", "Geen Content-Signal-directive gevonden."); }
+async function dnsAidCheck(hostname) { const response = await safeFetch(`https://cloudflare-dns.com/dns-query?name=_agents.${hostname}&type=HTTPS`, { headers: { Accept: "application/dns-json" } }); if (!response) return result("unableToCheck", "DNS-AID lookup kon niet worden uitgevoerd."); try { const data = await response.json(); return data.Answer?.length ? result("pass", "DNS-AID-record gevonden.") : result("optional", "Geen DNS-AID-record gevonden."); } catch { return result("unableToCheck", "DNS-AID-response was niet valide JSON."); } }
+async function wellKnownJson(origin, paths, label, validator) { for (const path of paths) { const response = await safeFetch(`${origin}${path}`); if (!response || response.status !== 200) continue; try { const data = await response.json(); if (validator(data)) return result("pass", `${label} gevonden op ${path}.`, { path }); } catch {} } return result("optional", `${label} niet gevonden.`); }
+function buildChecks({ robots, sitemap, homepage, links, markdown, llms, discovery, seo, security, agents, botMatrix, dnsAid, robotsText, origin }) { return { foundation: { homepage, robotsTxt: robots, sitemap, canonical: seo.canonical, metaRobots: seo.metaRobots, pageMetadata: seo.pageMetadata }, aiContent: { llmsTxt: llms.root, llmsFullTxt: llms.full, wellKnownLlmsTxt: llms.wellKnown, llmsTxtV2: discovery.llmsV2Relations, markdownNegotiation: markdown, markdownRoutes: discovery.markdownRoutes, contentIndex: discovery.contentIndex }, botAccess: { aiBotRules: aiRulesCheck(robotsText), contentSignals: contentSignalsCheck(robotsText), botMatrix: botMatrix.summary }, agentDiscovery: { linkHeaders: links, dnsAid, agentsMd: agents.agentsMd, agentsMdLower: agents.agentsMdLower, agentSkills: agents.agentSkills, mcpServerCard: wellKnownJson(origin, ["/.well-known/mcp/server-card.json", "/.well-known/mcp.json"], "MCP Server Card", d => Boolean(d?.serverInfo?.name || d?.name)) }, security: { securityTxt: security.securityTxt, aiTxt: security.aiTxt, aiJson: security.aiJson, jsonld: seo.jsonld, securityHeaders: seo.securityHeaders }, botDetails: botMatrix.agents, commerce: { ucp: result("optional", "UCP-validatie volgt in de commerce-module."), acp: result("optional", "ACP-validatie volgt in de commerce-module."), x402: result("optional", "x402-validatie volgt in de commerce-module."), mpp: result("optional", "MPP-validatie volgt in de commerce-module."), ap2: result("optional", "AP2-validatie volgt in de commerce-module.") }; }
+function scoreChecks(checks, profile) { const excluded = new Set(["optional", "neutral", "unableToCheck", "warning"]); const all = Object.entries(checks).flatMap(([category, values]) => category === "botDetails" ? [] : Object.entries(values).map(([id, value]) => ({ category, id, ...value }))); const relevant = all.filter(x => !excluded.has(x.status)); const passes = relevant.filter(x => x.status === "pass").length; return { score: relevant.length ? Math.round(passes / relevant.length * 100) : 0, passes, fails: relevant.length - passes, warnings: all.filter(x => x.status === "warning").length, total: all.length, profile }; }
+export async function onRequest(context) { const { request } = context; const requestUrl = new URL(request.url); const body = request.method === "POST" ? await request.json().catch(() => ({})) : {}; const input = request.method === "POST" ? body.url : requestUrl.searchParams.get("url"); const profile = normalizeProfile(request.method === "POST" ? body.profile : requestUrl.searchParams.get("profile")); if (!input) return jsonResponse({ error: "Parameter 'url' is verplicht." }, 400); let target; try { target = getTarget(input); } catch (error) { return jsonResponse({ error: error.message }, 400); } const origin = originOf(target); const homepageResponse = await safeFetch(origin); const homepageHtml = homepageResponse ? await homepageResponse.text() : ""; const homepage = homepageResponse ? result(homepageResponse.status >= 200 && homepageResponse.status < 400 ? "pass" : "fail", `Homepage geeft HTTP ${homepageResponse.status}.`, { statusCode: homepageResponse.status, finalUrl: homepageResponse.url, contentType: homepageResponse.headers.get("content-type") || "" }) : result("fail", "Homepage kon niet worden opgehaald."); const robots = await robotsCheck(origin); const robotsText = robots.raw || ""; delete robots.raw; const [sitemap, links, markdown, llms, discovery, seo, security, agents, botMatrix, dnsAid] = await Promise.all([sitemapCheck(origin, robotsText), linkHeadersCheck(origin), markdownNegotiationCheck(origin), llmsChecks(origin), contentDiscoveryChecks(origin, homepageHtml, homepageResponse), seoChecks(origin, homepageHtml, homepageResponse), securityChecks(origin), agentsContextChecks(origin), botMatrixCheck(origin), dnsAidCheck(target.hostname)]); const checks = buildChecks({ robots, sitemap, homepage, links, markdown, llms, discovery, seo, security, agents, botMatrix, dnsAid, robotsText, origin }); const score = scoreChecks(checks, profile); const level = score.score >= 85 ? { level: 5, name: "Agent-Native" } : score.score >= 70 ? { level: 4, name: "Agent-Integrated" } : score.score >= 50 ? { level: 3, name: "Agent-Readable" } : score.score >= 30 ? { level: 2, name: "Bot-Aware" } : score.score >= 15 ? { level: 1, name: "Basic Web Presence" } : { level: 0, name: "Not Ready" }; return jsonResponse({ url: target.href, origin, profile, scanned_at: new Date().toISOString(), ...level, score, crawlerRegistry: AI_BOT_REGISTRY, checks }); }
